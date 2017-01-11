@@ -17,7 +17,7 @@ rotationStep = 0.06
 mapSize, screenSize :: (Int, Int)
 mapHeight, mapWidth, screenHeight, screenWidth :: Int
 mapSize@(mapWidth,mapHeight) = (15,15)
-screenSize@(screenWidth,screenHeight) = (175,55)
+screenSize@(screenWidth,screenHeight) = (150,35)
 
 fieldOfView :: Double
 fieldOfView = pi / 1.5
@@ -73,10 +73,7 @@ initialGameState = GameState
   }
 
 grayscaleMap :: [Char]
-grayscaleMap = [                    -- characters sorted by brigtness
- -- '#','$','@','B','%','8','&','W','M','0','Q','*','o','a','h','k','b','d','p','q','w','m','Z','O','I','L','C','J','U','Y','X','z','c','v','u','n',
- -- 'x','r','j','f','t','\\','|','(',')','1','{','}','[',']','?','-','_','+','~','>','i','!','l',';',':',',','\'','\"','^','`','\'','.']
-    'M','$','o','?','/','!',';',':','\'','.','-']
+grayscaleMap = ['#','M','$','o','?','/','!',';',':','\'','.','-'] -- characters sorted by brightness
 
 -----------------------------------------------   Ensures given values is in given interval by clamping it.
 
@@ -128,10 +125,10 @@ render3Dview drawInfo height = unlines [map (toChar i) drawInfo | i <- [1..heigh
     toChar row item =
       if distanceFromMiddle < columnHeight
       then let shadowTerm = case snd item of
-                 North -> 0.0
-                 East  -> 0.3
-                 South -> 0.6
-                 West  -> 0.9
+                 North -> 0.25
+                 East  -> 0.50
+                 South -> 0.75
+                 West  -> 1.00
            in intensityToChar $ shadowTerm + distanceToIntensity (fst item)
       else ' ' --intensityToChar ( 5 *  (fromIntegral distanceFromMiddle) / heightFrac )
       where
@@ -257,28 +254,40 @@ mapSquareAt (GameState _ _ gMap) coords@(x,y) =
     then gMap !! mapToArrayCoords coords
     else Wall
 
------------------------------------------------   Moves the player forward by given distance, with collisions.
+-----------------------------------------------   Moves player by given distance in given direction, with collisions.
 
-movePlayer :: GameState -> Double -> GameState
-movePlayer (prev@GameState {playerPos = pPos}) dist = prev
+movePlayerInDirection :: GameState -> Double -> Double -> GameState
+movePlayerInDirection (prev@GameState {playerPos = pPos}) angle dist = prev
   { playerPos = bimap (+ if isWalkable (first  (+ plusX) pPos) then plusX else 0)
                       (+ if isWalkable (second (+ plusY) pPos) then plusY else 0)
                       pPos
   }
   where
-    plusX = cos (playerRot prev) * dist
-    plusY = -1 * (sin (playerRot prev) * dist)
+    plusX = cos angle * dist
+    plusY = -1 * (sin angle * dist)
     isWalkable pos = mapSquareAt prev (bimap floor floor pos) == Empty
 
 -----------------------------------------------   Computes the next game state.
 
 nextGameState :: GameState -> Char -> Maybe GameState
-nextGameState _    'q' = Nothing
-nextGameState prev 'w' = Just $ movePlayer prev stepLength
-nextGameState prev 's' = Just $ movePlayer prev (-1 * stepLength)
+nextGameState _    'x' = Nothing
+nextGameState prev 'w' = Just $ movePlayerForward prev stepLength
+nextGameState prev 's' = Just $ movePlayerForward prev (-1 * stepLength)
+nextGameState prev 'q' = Just $ strafePlayer prev stepLength
+nextGameState prev 'e' = Just $ strafePlayer prev (-1 * stepLength)
 nextGameState prev 'a' = Just $ prev {playerRot = angleTo02Pi (playerRot prev + rotationStep)}
 nextGameState prev 'd' = Just $ prev {playerRot = angleTo02Pi (playerRot prev - rotationStep)}
 nextGameState prev _   = Just prev
+
+-----------------------------------------------   Moves the player forward by given distance, with collisions.
+
+movePlayerForward :: GameState -> Double -> GameState
+movePlayerForward prev = movePlayerInDirection prev (playerRot prev)
+
+-----------------------------------------------   Strafes the player left by given distance (with collisions).
+
+strafePlayer :: GameState -> Double -> GameState
+strafePlayer prev = movePlayerInDirection prev (angleTo02Pi (playerRot prev + pi / 2))
 
 -----------------------------------------------   Main game loop.
 
